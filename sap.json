@@ -1,0 +1,52 @@
+{
+  "schema": "sa.plugin/1",
+  "name": "wgpu",
+  "version": "0.1.0",
+  "source": {
+    "type": "local",
+    "path": "."
+  },
+  "abi": {
+    "plugin": 1,
+    "saasm": ">=0.4.0",
+    "symbols": "browser-imports"
+  },
+  "artifacts": {
+    "linux-x86_64": {
+      "path": "zig-out/lib/libwgpu.so"
+    }
+  },
+  "interfaces": {
+    "wasm_imports": [
+      { "path": "wgpu.sai" }
+    ],
+    "sal": { "path": "wgpu.sal" }
+  },
+  "assets": {
+    "share": [
+      { "path": "zig-out/share/wgpu_airlock.js", "target": "wgpu_airlock.js" },
+      { "path": "wgpu.sai", "target": "wgpu.sai" },
+      { "path": "wgpu.sal", "target": "wgpu.sal" },
+      { "path": "demos/rotating_cube.sax", "target": "demos/rotating_cube.sax" }
+    ]
+  },
+  "skills": ["wgpu", "sax.wgpu"],
+  "permissions": {
+    "fs": [
+      { "op": "read", "path": "$PROJECT/**" },
+      { "op": "write", "path": "$PROJECT/**" },
+      { "op": "create", "path": "$PROJECT/**" }
+    ],
+    "net": [],
+    "env": ["HOME", "SA_*"],
+    "process": { "spawn": false, "exec": [] }
+  },
+  "dependencies": {
+    "sax": {
+      "version": ">=0.1.0",
+      "abi": 1,
+      "path": "../sa_plugin_sax",
+      "optional": false
+    }
+  }
+}
