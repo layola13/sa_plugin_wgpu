@@ -1,7 +1,598 @@
+#def WGPU_STATUS_OK = 0
+#def WGPU_STATUS_ERROR = 1
+#def WGPU_STATUS_NOT_READY = 2
+
 #def WGPU_BUFFER_USAGE_COPY_DST = 8
 #def WGPU_BUFFER_USAGE_INDEX = 16
 #def WGPU_BUFFER_USAGE_VERTEX = 32
 #def WGPU_BUFFER_USAGE_UNIFORM = 64
+
+#def WGPU_VERTEX_FORMAT_FLOAT32X2 = 1
+#def WGPU_VERTEX_FORMAT_FLOAT32X3 = 2
+#def WGPU_VERTEX_FORMAT_FLOAT32X4 = 3
+#def WGPU_VERTEX_FORMAT_UINT32 = 4
+
+#def WGPU_PRIMITIVE_TRIANGLE_LIST = 0
+#def WGPU_PRIMITIVE_TRIANGLE_STRIP = 1
+#def WGPU_PRIMITIVE_LINE_LIST = 2
+#def WGPU_PRIMITIVE_LINE_STRIP = 3
+#def WGPU_PRIMITIVE_POINT_LIST = 4
+
+#def WGPU_CULL_NONE = 0
+#def WGPU_CULL_FRONT = 1
+#def WGPU_CULL_BACK = 2
+
+#def WGPU_INDEX_NONE = 0
+#def WGPU_INDEX_U16 = 1
+#def WGPU_INDEX_U32 = 2
+
+#def WGPU_LOAD_OP_LOAD = 0
+#def WGPU_LOAD_OP_CLEAR = 1
+#def WGPU_STORE_OP_DISCARD = 0
+#def WGPU_STORE_OP_STORE = 1
+
+#def WGPU_DEPTH_COMPARE_LESS = 0
+#def WGPU_DEPTH_COMPARE_LESS_EQUAL = 1
+#def WGPU_DEPTH_COMPARE_ALWAYS = 2
+
+#def WGPU_SHADER_FORMAT_WGSL = 1
+#def WGPU_SHADER_VALIDATE_DISABLED = 0
+#def WGPU_SHADER_VALIDATE_ENABLED = 1
+
+#def WGPU_SHADER_DESC_format = +0
+#def WGPU_SHADER_DESC_flags = +4
+#def WGPU_SHADER_DESC_source_ptr = +8
+#def WGPU_SHADER_DESC_source_len = +16
+#def WGPU_SHADER_DESC_label_ptr = +24
+#def WGPU_SHADER_DESC_label_len = +32
+#def WGPU_SHADER_DESC_validate = +40
+#def WGPU_SHADER_DESC_SIZE = 48
+
+#def WGPU_VERTEX_ATTR_shader_location = +0
+#def WGPU_VERTEX_ATTR_offset = +8
+#def WGPU_VERTEX_ATTR_format = +16
+#def WGPU_VERTEX_ATTR_SIZE = 24
+
+#def WGPU_RENDER_PIPELINE_DESC_shader = +0
+#def WGPU_RENDER_PIPELINE_DESC_vs_entry_ptr = +8
+#def WGPU_RENDER_PIPELINE_DESC_vs_entry_len = +16
+#def WGPU_RENDER_PIPELINE_DESC_fs_entry_ptr = +24
+#def WGPU_RENDER_PIPELINE_DESC_fs_entry_len = +32
+#def WGPU_RENDER_PIPELINE_DESC_vertex_stride = +40
+#def WGPU_RENDER_PIPELINE_DESC_attrs_ptr = +48
+#def WGPU_RENDER_PIPELINE_DESC_attrs_len = +56
+#def WGPU_RENDER_PIPELINE_DESC_primitive = +64
+#def WGPU_RENDER_PIPELINE_DESC_cull_mode = +68
+#def WGPU_RENDER_PIPELINE_DESC_depth_enabled = +72
+#def WGPU_RENDER_PIPELINE_DESC_depth_write_enabled = +76
+#def WGPU_RENDER_PIPELINE_DESC_depth_compare = +80
+#def WGPU_RENDER_PIPELINE_DESC_uniform_binding = +84
+#def WGPU_RENDER_PIPELINE_DESC_sample_count = +88
+#def WGPU_RENDER_PIPELINE_DESC_SIZE = 96
+
+#def WGPU_DRAW_DESC_pipeline = +0
+#def WGPU_DRAW_DESC_vertex = +8
+#def WGPU_DRAW_DESC_index = +16
+#def WGPU_DRAW_DESC_uniform = +24
+#def WGPU_DRAW_DESC_index_format = +32
+#def WGPU_DRAW_DESC_index_count = +40
+#def WGPU_DRAW_DESC_vertex_count = +48
+#def WGPU_DRAW_DESC_load_op = +56
+#def WGPU_DRAW_DESC_store_op = +60
+#def WGPU_DRAW_DESC_clear_r = +64
+#def WGPU_DRAW_DESC_clear_g = +68
+#def WGPU_DRAW_DESC_clear_b = +72
+#def WGPU_DRAW_DESC_clear_a = +76
+#def WGPU_DRAW_DESC_depth_load_op = +80
+#def WGPU_DRAW_DESC_depth_store_op = +84
+#def WGPU_DRAW_DESC_depth_clear_milli = +88
+#def WGPU_DRAW_DESC_SIZE = 96
+
+@sa_wgpu_shader_desc_init(&desc: ptr) -> void:
+L_ENTRY:
+    store desc+WGPU_SHADER_DESC_format, WGPU_SHADER_FORMAT_WGSL as i32
+    store desc+WGPU_SHADER_DESC_flags, 0 as i32
+    store desc+WGPU_SHADER_DESC_source_ptr, 0 as i64
+    store desc+WGPU_SHADER_DESC_source_len, 0 as i64
+    store desc+WGPU_SHADER_DESC_label_ptr, 0 as i64
+    store desc+WGPU_SHADER_DESC_label_len, 0 as i64
+    store desc+WGPU_SHADER_DESC_validate, WGPU_SHADER_VALIDATE_ENABLED as i32
+    !desc
+    return
+
+@sa_wgpu_shader_desc_set_source(&desc: ptr, source_ptr: ptr, source_len: i64) -> void:
+L_ENTRY:
+    store desc+WGPU_SHADER_DESC_source_ptr, source_ptr as ptr
+    store desc+WGPU_SHADER_DESC_source_len, source_len as i64
+    !source_len
+    !source_ptr
+    !desc
+    return
+
+@sa_wgpu_shader_desc_set_label(&desc: ptr, label_ptr: ptr, label_len: i64) -> void:
+L_ENTRY:
+    store desc+WGPU_SHADER_DESC_label_ptr, label_ptr as ptr
+    store desc+WGPU_SHADER_DESC_label_len, label_len as i64
+    !label_len
+    !label_ptr
+    !desc
+    return
+
+@sa_wgpu_shader_desc_set_validate(&desc: ptr, validate: i32) -> void:
+L_ENTRY:
+    store desc+WGPU_SHADER_DESC_validate, validate as i32
+    !validate
+    !desc
+    return
+
+@sa_wgpu_shader_format_is_valid(format: i32) -> i32:
+L_ENTRY:
+    ok = eq format, WGPU_SHADER_FORMAT_WGSL
+    br ok -> L_TRUE, L_FALSE
+L_TRUE:
+    !ok
+    !format
+    return 1
+L_FALSE:
+    !ok
+    !format
+    return 0
+
+@sa_wgpu_shader_validate_mode_is_valid(validate: i32) -> i32:
+L_ENTRY:
+    off = eq validate, WGPU_SHADER_VALIDATE_DISABLED
+    on = eq validate, WGPU_SHADER_VALIDATE_ENABLED
+    ok = or off, on
+    br ok -> L_TRUE, L_FALSE
+L_TRUE:
+    !ok
+    !on
+    !off
+    !validate
+    return 1
+L_FALSE:
+    !ok
+    !on
+    !off
+    !validate
+    return 0
+
+@sa_wgpu_shader_desc_is_valid(&desc: ptr) -> i32:
+L_ENTRY:
+    format = load desc+WGPU_SHADER_DESC_format as i32
+    source_ptr = load desc+WGPU_SHADER_DESC_source_ptr as i64
+    source_len = load desc+WGPU_SHADER_DESC_source_len as i64
+    validate = load desc+WGPU_SHADER_DESC_validate as i32
+    format_ok = call @sa_wgpu_shader_format_is_valid(format)
+    ptr_ok = ne source_ptr, 0
+    len_ok = sgt source_len, 0
+    source_ok = and ptr_ok, len_ok
+    validate_ok = call @sa_wgpu_shader_validate_mode_is_valid(validate)
+    a = and format_ok, source_ok
+    ok = and a, validate_ok
+    br ok -> L_TRUE, L_FALSE
+L_TRUE:
+    !ok
+    !a
+    !validate_ok
+    !source_ok
+    !len_ok
+    !ptr_ok
+    !format_ok
+    !validate
+    !source_len
+    !source_ptr
+    !format
+    !desc
+    return 1
+L_FALSE:
+    !ok
+    !a
+    !validate_ok
+    !source_ok
+    !len_ok
+    !ptr_ok
+    !format_ok
+    !validate
+    !source_len
+    !source_ptr
+    !format
+    !desc
+    return 0
+
+@sa_wgpu_vertex_attr_init(&attr: ptr, shader_location: i32, offset: i64, format: i32) -> void:
+L_ENTRY:
+    store attr+WGPU_VERTEX_ATTR_shader_location, shader_location as i32
+    store attr+WGPU_VERTEX_ATTR_offset, offset as i64
+    store attr+WGPU_VERTEX_ATTR_format, format as i32
+    !format
+    !offset
+    !shader_location
+    !attr
+    return
+
+@sa_wgpu_vertex_format_is_valid(format: i32) -> i32:
+L_ENTRY:
+    f2 = eq format, WGPU_VERTEX_FORMAT_FLOAT32X2
+    f3 = eq format, WGPU_VERTEX_FORMAT_FLOAT32X3
+    f4 = eq format, WGPU_VERTEX_FORMAT_FLOAT32X4
+    u1 = eq format, WGPU_VERTEX_FORMAT_UINT32
+    a = or f2, f3
+    b = or f4, u1
+    ok = or a, b
+    br ok -> L_TRUE, L_FALSE
+L_TRUE:
+    !ok
+    !b
+    !a
+    !u1
+    !f4
+    !f3
+    !f2
+    !format
+    return 1
+L_FALSE:
+    !ok
+    !b
+    !a
+    !u1
+    !f4
+    !f3
+    !f2
+    !format
+    return 0
+
+@sa_wgpu_primitive_is_valid(primitive: i32) -> i32:
+L_ENTRY:
+    t0 = eq primitive, WGPU_PRIMITIVE_TRIANGLE_LIST
+    t1 = eq primitive, WGPU_PRIMITIVE_TRIANGLE_STRIP
+    l0 = eq primitive, WGPU_PRIMITIVE_LINE_LIST
+    l1 = eq primitive, WGPU_PRIMITIVE_LINE_STRIP
+    p0 = eq primitive, WGPU_PRIMITIVE_POINT_LIST
+    a = or t0, t1
+    b = or l0, l1
+    c = or a, b
+    ok = or c, p0
+    br ok -> L_TRUE, L_FALSE
+L_TRUE:
+    !ok
+    !c
+    !b
+    !a
+    !p0
+    !l1
+    !l0
+    !t1
+    !t0
+    !primitive
+    return 1
+L_FALSE:
+    !ok
+    !c
+    !b
+    !a
+    !p0
+    !l1
+    !l0
+    !t1
+    !t0
+    !primitive
+    return 0
+
+@sa_wgpu_index_format_is_valid(format: i32) -> i32:
+L_ENTRY:
+    none = eq format, WGPU_INDEX_NONE
+    u16 = eq format, WGPU_INDEX_U16
+    u32 = eq format, WGPU_INDEX_U32
+    any_index = or u16, u32
+    ok = or none, any_index
+    br ok -> L_TRUE, L_FALSE
+L_TRUE:
+    !ok
+    !any_index
+    !u32
+    !u16
+    !none
+    !format
+    return 1
+L_FALSE:
+    !ok
+    !any_index
+    !u32
+    !u16
+    !none
+    !format
+    return 0
+
+@sa_wgpu_load_op_is_valid(op: i32) -> i32:
+L_ENTRY:
+    load = eq op, WGPU_LOAD_OP_LOAD
+    clear = eq op, WGPU_LOAD_OP_CLEAR
+    ok = or load, clear
+    br ok -> L_TRUE, L_FALSE
+L_TRUE:
+    !ok
+    !clear
+    !load
+    !op
+    return 1
+L_FALSE:
+    !ok
+    !clear
+    !load
+    !op
+    return 0
+
+@sa_wgpu_store_op_is_valid(op: i32) -> i32:
+L_ENTRY:
+    discard = eq op, WGPU_STORE_OP_DISCARD
+    store = eq op, WGPU_STORE_OP_STORE
+    ok = or discard, store
+    br ok -> L_TRUE, L_FALSE
+L_TRUE:
+    !ok
+    !store
+    !discard
+    !op
+    return 1
+L_FALSE:
+    !ok
+    !store
+    !discard
+    !op
+    return 0
+
+@sa_wgpu_render_pipeline_desc_init(&desc: ptr) -> void:
+L_ENTRY:
+    store desc+WGPU_RENDER_PIPELINE_DESC_shader, 0 as i64
+    store desc+WGPU_RENDER_PIPELINE_DESC_vs_entry_ptr, 0 as i64
+    store desc+WGPU_RENDER_PIPELINE_DESC_vs_entry_len, 0 as i64
+    store desc+WGPU_RENDER_PIPELINE_DESC_fs_entry_ptr, 0 as i64
+    store desc+WGPU_RENDER_PIPELINE_DESC_fs_entry_len, 0 as i64
+    store desc+WGPU_RENDER_PIPELINE_DESC_vertex_stride, 0 as i64
+    store desc+WGPU_RENDER_PIPELINE_DESC_attrs_ptr, 0 as i64
+    store desc+WGPU_RENDER_PIPELINE_DESC_attrs_len, 0 as i64
+    store desc+WGPU_RENDER_PIPELINE_DESC_primitive, WGPU_PRIMITIVE_TRIANGLE_LIST as i32
+    store desc+WGPU_RENDER_PIPELINE_DESC_cull_mode, WGPU_CULL_NONE as i32
+    store desc+WGPU_RENDER_PIPELINE_DESC_depth_enabled, 1 as i32
+    store desc+WGPU_RENDER_PIPELINE_DESC_depth_write_enabled, 1 as i32
+    store desc+WGPU_RENDER_PIPELINE_DESC_depth_compare, WGPU_DEPTH_COMPARE_LESS as i32
+    store desc+WGPU_RENDER_PIPELINE_DESC_uniform_binding, 0 as i32
+    store desc+WGPU_RENDER_PIPELINE_DESC_sample_count, 1 as i32
+    !desc
+    return
+
+@sa_wgpu_render_pipeline_desc_set_shader(&desc: ptr, shader: i64, vs_entry: ptr, vs_len: i64, fs_entry: ptr, fs_len: i64) -> void:
+L_ENTRY:
+    store desc+WGPU_RENDER_PIPELINE_DESC_shader, shader as i64
+    store desc+WGPU_RENDER_PIPELINE_DESC_vs_entry_ptr, vs_entry as i64
+    store desc+WGPU_RENDER_PIPELINE_DESC_vs_entry_len, vs_len as i64
+    store desc+WGPU_RENDER_PIPELINE_DESC_fs_entry_ptr, fs_entry as i64
+    store desc+WGPU_RENDER_PIPELINE_DESC_fs_entry_len, fs_len as i64
+    !fs_len
+    !fs_entry
+    !vs_len
+    !vs_entry
+    !shader
+    !desc
+    return
+
+@sa_wgpu_render_pipeline_desc_set_vertex_layout(&desc: ptr, stride: i64, &attrs: ptr, attrs_len: i64) -> void:
+L_ENTRY:
+    store desc+WGPU_RENDER_PIPELINE_DESC_vertex_stride, stride as i64
+    store desc+WGPU_RENDER_PIPELINE_DESC_attrs_ptr, attrs as i64
+    store desc+WGPU_RENDER_PIPELINE_DESC_attrs_len, attrs_len as i64
+    !attrs_len
+    !attrs
+    !stride
+    !desc
+    return
+
+@sa_wgpu_render_pipeline_desc_is_valid(&desc: ptr) -> i32:
+L_ENTRY:
+    shader = load desc+WGPU_RENDER_PIPELINE_DESC_shader as i64
+    vs_len = load desc+WGPU_RENDER_PIPELINE_DESC_vs_entry_len as i64
+    fs_len = load desc+WGPU_RENDER_PIPELINE_DESC_fs_entry_len as i64
+    stride = load desc+WGPU_RENDER_PIPELINE_DESC_vertex_stride as i64
+    attrs = load desc+WGPU_RENDER_PIPELINE_DESC_attrs_len as i64
+    primitive = load desc+WGPU_RENDER_PIPELINE_DESC_primitive as i32
+    sample_count = load desc+WGPU_RENDER_PIPELINE_DESC_sample_count as i32
+    shader_ok = sgt shader, 0
+    entries_a = sgt vs_len, 0
+    entries_b = sgt fs_len, 0
+    entries_ok = and entries_a, entries_b
+    stride_ok = sgt stride, 0
+    attrs_min = sgt attrs, 0
+    attrs_max = sle attrs, 4
+    attrs_ok = and attrs_min, attrs_max
+    primitive_ok = call @sa_wgpu_primitive_is_valid(primitive)
+    samples_ok = eq sample_count, 1
+    a = and shader_ok, entries_ok
+    b = and stride_ok, attrs_ok
+    c = and a, b
+    d = and primitive_ok, samples_ok
+    ok = and c, d
+    br ok -> L_TRUE, L_FALSE
+L_TRUE:
+    !ok
+    !d
+    !c
+    !b
+    !a
+    !samples_ok
+    !primitive_ok
+    !attrs_ok
+    !attrs_max
+    !attrs_min
+    !stride_ok
+    !entries_ok
+    !entries_b
+    !entries_a
+    !shader_ok
+    !sample_count
+    !primitive
+    !attrs
+    !stride
+    !fs_len
+    !vs_len
+    !shader
+    !desc
+    return 1
+L_FALSE:
+    !ok
+    !d
+    !c
+    !b
+    !a
+    !samples_ok
+    !primitive_ok
+    !attrs_ok
+    !attrs_max
+    !attrs_min
+    !stride_ok
+    !entries_ok
+    !entries_b
+    !entries_a
+    !shader_ok
+    !sample_count
+    !primitive
+    !attrs
+    !stride
+    !fs_len
+    !vs_len
+    !shader
+    !desc
+    return 0
+
+@sa_wgpu_draw_desc_init(&desc: ptr) -> void:
+L_ENTRY:
+    store desc+WGPU_DRAW_DESC_pipeline, 0 as i64
+    store desc+WGPU_DRAW_DESC_vertex, 0 as i64
+    store desc+WGPU_DRAW_DESC_index, 0 as i64
+    store desc+WGPU_DRAW_DESC_uniform, 0 as i64
+    store desc+WGPU_DRAW_DESC_index_format, WGPU_INDEX_NONE as i32
+    store desc+WGPU_DRAW_DESC_index_count, 0 as i64
+    store desc+WGPU_DRAW_DESC_vertex_count, 0 as i64
+    store desc+WGPU_DRAW_DESC_load_op, WGPU_LOAD_OP_CLEAR as i32
+    store desc+WGPU_DRAW_DESC_store_op, WGPU_STORE_OP_STORE as i32
+    store desc+WGPU_DRAW_DESC_clear_r, 20 as i32
+    store desc+WGPU_DRAW_DESC_clear_g, 25 as i32
+    store desc+WGPU_DRAW_DESC_clear_b, 30 as i32
+    store desc+WGPU_DRAW_DESC_clear_a, 1000 as i32
+    store desc+WGPU_DRAW_DESC_depth_load_op, WGPU_LOAD_OP_CLEAR as i32
+    store desc+WGPU_DRAW_DESC_depth_store_op, WGPU_STORE_OP_STORE as i32
+    store desc+WGPU_DRAW_DESC_depth_clear_milli, 1000 as i32
+    !desc
+    return
+
+@sa_wgpu_draw_desc_set_resources(&desc: ptr, pipeline: i64, vertex: i64, index: i64, uniform: i64) -> void:
+L_ENTRY:
+    store desc+WGPU_DRAW_DESC_pipeline, pipeline as i64
+    store desc+WGPU_DRAW_DESC_vertex, vertex as i64
+    store desc+WGPU_DRAW_DESC_index, index as i64
+    store desc+WGPU_DRAW_DESC_uniform, uniform as i64
+    !uniform
+    !index
+    !vertex
+    !pipeline
+    !desc
+    return
+
+@sa_wgpu_draw_desc_set_counts(&desc: ptr, index_format: i32, index_count: i64, vertex_count: i64) -> void:
+L_ENTRY:
+    store desc+WGPU_DRAW_DESC_index_format, index_format as i32
+    store desc+WGPU_DRAW_DESC_index_count, index_count as i64
+    store desc+WGPU_DRAW_DESC_vertex_count, vertex_count as i64
+    !vertex_count
+    !index_count
+    !index_format
+    !desc
+    return
+
+@sa_wgpu_draw_desc_is_valid(&desc: ptr) -> i32:
+L_ENTRY:
+    pipeline = load desc+WGPU_DRAW_DESC_pipeline as i64
+    vertex = load desc+WGPU_DRAW_DESC_vertex as i64
+    index = load desc+WGPU_DRAW_DESC_index as i64
+    format = load desc+WGPU_DRAW_DESC_index_format as i32
+    index_count = load desc+WGPU_DRAW_DESC_index_count as i64
+    vertex_count = load desc+WGPU_DRAW_DESC_vertex_count as i64
+    load_op = load desc+WGPU_DRAW_DESC_load_op as i32
+    store_op = load desc+WGPU_DRAW_DESC_store_op as i32
+    base_ok_a = sgt pipeline, 0
+    base_ok_b = sgt vertex, 0
+    base_ok = and base_ok_a, base_ok_b
+    format_ok = call @sa_wgpu_index_format_is_valid(format)
+    load_ok = call @sa_wgpu_load_op_is_valid(load_op)
+    store_ok = call @sa_wgpu_store_op_is_valid(store_op)
+    has_index_handle = sgt index, 0
+    has_index_count = sgt index_count, 0
+    has_index_format = ne format, WGPU_INDEX_NONE
+    index_a = and has_index_handle, has_index_count
+    indexed = and index_a, has_index_format
+    has_vertices = sgt vertex_count, 0
+    count_ok = or indexed, has_vertices
+    a = and base_ok, format_ok
+    b = and load_ok, store_ok
+    c = and a, b
+    ok = and c, count_ok
+    br ok -> L_TRUE, L_FALSE
+L_TRUE:
+    !ok
+    !c
+    !b
+    !a
+    !count_ok
+    !has_vertices
+    !indexed
+    !index_a
+    !has_index_format
+    !has_index_count
+    !has_index_handle
+    !store_ok
+    !load_ok
+    !format_ok
+    !base_ok
+    !base_ok_b
+    !base_ok_a
+    !store_op
+    !load_op
+    !vertex_count
+    !index_count
+    !format
+    !index
+    !vertex
+    !pipeline
+    !desc
+    return 1
+L_FALSE:
+    !ok
+    !c
+    !b
+    !a
+    !count_ok
+    !has_vertices
+    !indexed
+    !index_a
+    !has_index_format
+    !has_index_count
+    !has_index_handle
+    !store_ok
+    !load_ok
+    !format_ok
+    !base_ok
+    !base_ok_b
+    !base_ok_a
+    !store_op
+    !load_op
+    !vertex_count
+    !index_count
+    !format
+    !index
+    !vertex
+    !pipeline
+    !desc
+    return 0
 
 #def WGPU_CUBE_VERTEX_USAGE = 40
 #def WGPU_CUBE_INDEX_USAGE = 24

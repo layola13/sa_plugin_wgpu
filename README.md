@@ -4,7 +4,7 @@
 
 It deliberately keeps WebGPU kernel material out of JavaScript. The broker in `wgpu_airlock.js` only owns browser-only operations: `navigator.gpu`, GPU object handles, byte uploads, and command submission. WGSL, vertex bytes, index bytes, uniform frames, and frame selection are emitted by SA/WASM.
 
-The v0.1 acceptance target is a rotating 3D cube built from SAX and rendered in the browser through WebGPU. This is a sidecar surface, not a complete WebGPU engine: compute pipelines, textures, multi-pass render composition, and high-performance dashboard primitives are still future work.
+The v0.1 acceptance target is a rotating 3D cube built from SAX and rendered in the browser through WebGPU. The shared sidecar now also exposes the first generic render-pipeline and draw-submit contract used by `sa_plugin_3dengines/sa_plugin_3d_render_wgpu`. This is still not a complete WebGPU engine: compute pipelines, textures, render graph scheduling, multi-pass render composition, and high-performance dashboard primitives are future work.
 
 ## Commands
 
@@ -21,7 +21,7 @@ zig build test
 zig build install-smoke
 ```
 
-`zig build test` builds the native plugin, installs the generated share assets, verifies that the JS broker does not contain SA-owned WGSL/geometry data, runs `sa wgpu check`, builds the rotating cube SAX demo, and statically verifies the generated SAX dist.
+`zig build test` builds the native plugin, runs SA `@test` coverage for the shared WGPU descriptors, installs the generated share assets, verifies that the JS broker does not contain SA-owned WGSL/geometry data, runs `sa wgpu check`, builds the rotating cube SAX demo, and statically verifies the generated SAX dist.
 
 `zig build install-smoke` installs WGPU and SAX into an isolated plugin home and verifies that the installed layout exposes the expected share and SA interface files.
 
@@ -153,6 +153,18 @@ Open `http://127.0.0.1:5173/`. The current acceptance canvas is fixed at `1024 x
 
 - `wgpu.sal` owns the WGSL shader, 24 cube vertices, 36 `uint16` indices, and 240 uniform frames. At 60 FPS, that is roughly one full rotation every four seconds.
 - `demos/rotating_cube.sax` and `src/rotating_cube.sax` create the WebGPU buffers from SA/WASM memory, write the selected uniform frame each RAF tick, submit the indexed draw, and wrap the frame counter.
-- `wgpu_airlock.js` remains a browser broker only: it requests `navigator.gpu`, creates GPU handles, uploads byte slices, configures a fixed-size canvas, owns the `depth24plus` depth texture, and submits render passes.
+- `wgpu_airlock.js` remains a browser broker only: it requests `navigator.gpu`, creates GPU handles, uploads byte slices, configures a fixed-size canvas, owns the `depth24plus` depth texture, creates render pipelines from SA-owned descriptors, and submits render passes.
 - `sa_wgpu_write_buffer_frame` was added so SAX can pass the SA-owned uniform frame table to the broker without moving the frame data into JavaScript.
 - The demo references the `gpu-curtains` basic cube shape by using per-face cube vertices and indexed triangle-list drawing, while keeping the rendering kernel and data in SA-owned files.
+
+## Shared WGPU Contract
+
+The shared WebGPU sidecar covers the first Bevy render-device path:
+
+- `sa_wgpu_create_buffer` maps to Bevy's `RenderDevice::create_buffer_with_data` style upload path.
+- `sa_wgpu_create_shader` maps to WebGPU shader module creation with WGSL still owned by SA/WASM.
+- `sa_wgpu_create_render_pipeline` reads a SA `WGPU_RENDER_PIPELINE_DESC` and creates a browser `GPURenderPipeline` with vertex layout, primitive topology, cull mode, one uniform bind group, and optional `depth24plus`.
+- `sa_wgpu_submit_indexed_draw` reads a SA `WGPU_DRAW_DESC`, begins a render pass, binds pipeline/buffers/uniforms, issues indexed or non-indexed draw, and submits the command buffer.
+- `sa_wgpu_create_cube_pipeline` and `sa_wgpu_submit_cube_frame` remain compatibility wrappers for the rotating cube demo, but now reuse the same pipeline and draw helpers.
+
+The matching `tests/wgpu_layout_test.sa` validates descriptor layout and legality with SA `@test`; browser-only GPU behavior remains covered by the generated airlock verifier and rotating cube SAX build/browser acceptance steps.

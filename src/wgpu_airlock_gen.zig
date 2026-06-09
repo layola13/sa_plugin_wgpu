@@ -49,6 +49,14 @@ pub const source =
     \\  return new TextDecoder().decode(_bytes(ptr, len));
     \\}
     \\
+    \\function _read_i32(ptr) {
+    \\  return new DataView(_mem.buffer).getInt32(Number(ptr), true);
+    \\}
+    \\
+    \\function _read_i64(ptr) {
+    \\  return new DataView(_mem.buffer).getBigInt64(Number(ptr), true);
+    \\}
+    \\
     \\function _write_i64(ptr, value) {
     \\  new DataView(_mem.buffer).setBigInt64(Number(ptr), BigInt(value), true);
     \\}
@@ -68,6 +76,124 @@ pub const source =
     \\
     \\function _require_ready() {
     \\  if (!_instance || !_mem) throw new Error("WebGPU airlock is not bound to WASM memory");
+    \\}
+    \\
+    \\function _vertex_format(format) {
+    \\  switch (Number(format)) {
+    \\    case 1: return "float32x2";
+    \\    case 2: return "float32x3";
+    \\    case 3: return "float32x4";
+    \\    case 4: return "uint32";
+    \\    default: throw new Error(`unsupported vertex format ${format}`);
+    \\  }
+    \\}
+    \\
+    \\function _primitive_topology(primitive) {
+    \\  switch (Number(primitive)) {
+    \\    case 0: return "triangle-list";
+    \\    case 1: return "triangle-strip";
+    \\    case 2: return "line-list";
+    \\    case 3: return "line-strip";
+    \\    case 4: return "point-list";
+    \\    default: throw new Error(`unsupported primitive topology ${primitive}`);
+    \\  }
+    \\}
+    \\
+    \\function _cull_mode(mode) {
+    \\  switch (Number(mode)) {
+    \\    case 0: return "none";
+    \\    case 1: return "front";
+    \\    case 2: return "back";
+    \\    default: throw new Error(`unsupported cull mode ${mode}`);
+    \\  }
+    \\}
+    \\
+    \\function _depth_compare(mode) {
+    \\  switch (Number(mode)) {
+    \\    case 0: return "less";
+    \\    case 1: return "less-equal";
+    \\    case 2: return "always";
+    \\    default: throw new Error(`unsupported depth compare ${mode}`);
+    \\  }
+    \\}
+    \\
+    \\function _index_format(format) {
+    \\  switch (Number(format)) {
+    \\    case 1: return "uint16";
+    \\    case 2: return "uint32";
+    \\    default: return null;
+    \\  }
+    \\}
+    \\
+    \\function _load_op(op) {
+    \\  switch (Number(op)) {
+    \\    case 0: return "load";
+    \\    case 1: return "clear";
+    \\    default: throw new Error(`unsupported load op ${op}`);
+    \\  }
+    \\}
+    \\
+    \\function _store_op(op) {
+    \\  switch (Number(op)) {
+    \\    case 0: return "discard";
+    \\    case 1: return "store";
+    \\    default: throw new Error(`unsupported store op ${op}`);
+    \\  }
+    \\}
+    \\
+    \\function _milli(ptr) {
+    \\  return _read_i32(ptr) / 1000.0;
+    \\}
+    \\
+    \\function _create_render_pipeline(ctx, shader, vsEntry, fsEntry, vertexStride, attrs, primitive, cullMode, depthEnabled, depthWriteEnabled, depthCompare, uniformBinding, sampleCount) {
+    \\  const bindGroupLayout = ctx.device.createBindGroupLayout({ entries: [{ binding: Number(uniformBinding), visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } }] });
+    \\  const pipelineLayout = ctx.device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
+    \\  const desc = {
+    \\    layout: pipelineLayout,
+    \\    vertex: { module: shader, entryPoint: vsEntry, buffers: [{ arrayStride: Number(vertexStride), attributes: attrs }] },
+    \\    fragment: { module: shader, entryPoint: fsEntry, targets: [{ format: ctx.format }] },
+    \\    primitive: { topology: _primitive_topology(primitive), cullMode: _cull_mode(cullMode) },
+    \\    multisample: { count: Number(sampleCount) || 1 },
+    \\  };
+    \\  if (Number(depthEnabled) !== 0) {
+    \\    desc.depthStencil = { format: "depth24plus", depthWriteEnabled: Number(depthWriteEnabled) !== 0, depthCompare: _depth_compare(depthCompare) };
+    \\  }
+    \\  const pipeline = ctx.device.createRenderPipeline(desc);
+    \\  return { pipeline, bindGroupLayout, uniformBinding: Number(uniformBinding), depthEnabled: Number(depthEnabled) !== 0 };
+    \\}
+    \\
+    \\function _submit_draw(ctx, draw) {
+    \\  const pipelineObj = _object(draw.pipeline_h);
+    \\  const vertex = _object(draw.vertex_h);
+    \\  const index = draw.index_h ? _object(draw.index_h) : null;
+    \\  const uniform = draw.uniform_h ? _object(draw.uniform_h) : null;
+    \\  if (!pipelineObj || !vertex) throw new Error("invalid WebGPU draw pipeline or vertex buffer handle");
+    \\  if (draw.indexFormat && !index) throw new Error("indexed WebGPU draw requires an index buffer handle");
+    \\  const encoder = ctx.device.createCommandEncoder();
+    \\  const view = ctx.context.getCurrentTexture().createView();
+    \\  const passDesc = {
+    \\    colorAttachments: [{ view, clearValue: draw.clearValue, loadOp: draw.loadOp, storeOp: draw.storeOp }],
+    \\  };
+    \\  if (pipelineObj.depthEnabled) {
+    \\    passDesc.depthStencilAttachment = { view: _depth_view(ctx), depthClearValue: draw.depthClearValue, depthLoadOp: draw.depthLoadOp, depthStoreOp: draw.depthStoreOp };
+    \\  } else {
+    \\    _resize_canvas(ctx);
+    \\  }
+    \\  const pass = encoder.beginRenderPass(passDesc);
+    \\  pass.setPipeline(pipelineObj.pipeline);
+    \\  if (uniform) {
+    \\    const bindGroup = ctx.device.createBindGroup({ layout: pipelineObj.bindGroupLayout, entries: [{ binding: pipelineObj.uniformBinding, resource: { buffer: uniform } }] });
+    \\    pass.setBindGroup(0, bindGroup);
+    \\  }
+    \\  pass.setVertexBuffer(0, vertex);
+    \\  if (draw.indexFormat) {
+    \\    pass.setIndexBuffer(index, draw.indexFormat);
+    \\    pass.drawIndexed(Number(draw.indexCount));
+    \\  } else {
+    \\    pass.draw(Number(draw.vertexCount));
+    \\  }
+    \\  pass.end();
+    \\  ctx.device.queue.submit([encoder.finish()]);
     \\}
     \\
     \\function _resize_canvas(ctx) {
@@ -174,6 +300,40 @@ pub const source =
     \\    return 0;
     \\  },
     \\
+    \\  sa_wgpu_create_render_pipeline(ctx_h, desc_ptr, out_pipeline_ptr) {
+    \\    _require_ready();
+    \\    const ctx = _ctx(ctx_h);
+    \\    if (!ctx.ready) {
+    \\      _write_i64(out_pipeline_ptr, 0n);
+    \\      return _set_error("WebGPU context is not ready yet");
+    \\    }
+    \\    try {
+    \\      const base = Number(desc_ptr);
+    \\      const shader_h = _read_i64(base + 0);
+    \\      const shader = _object(shader_h);
+    \\      if (!shader) {
+    \\        _write_i64(out_pipeline_ptr, 0n);
+    \\        return _set_error("invalid shader handle");
+    \\      }
+    \\      const vsEntry = _read_str(_read_i64(base + 8), _read_i64(base + 16));
+    \\      const fsEntry = _read_str(_read_i64(base + 24), _read_i64(base + 32));
+    \\      const vertexStride = _read_i64(base + 40);
+    \\      const attrsPtr = Number(_read_i64(base + 48));
+    \\      const attrsLen = Number(_read_i64(base + 56));
+    \\      const attrs = [];
+    \\      for (let i = 0; i < attrsLen; i++) {
+    \\        const attr = attrsPtr + i * 24;
+    \\        attrs.push({ shaderLocation: _read_i32(attr + 0), offset: Number(_read_i64(attr + 8)), format: _vertex_format(_read_i32(attr + 16)) });
+    \\      }
+    \\      const pipelineObj = _create_render_pipeline(ctx, shader, vsEntry, fsEntry, vertexStride, attrs, _read_i32(base + 64), _read_i32(base + 68), _read_i32(base + 72), _read_i32(base + 76), _read_i32(base + 80), _read_i32(base + 84), _read_i32(base + 88));
+    \\      _write_i64(out_pipeline_ptr, _handle(pipelineObj));
+    \\      return 0;
+    \\    } catch (err) {
+    \\      _write_i64(out_pipeline_ptr, 0n);
+    \\      return _set_error(err && err.message ? err.message : err);
+    \\    }
+    \\  },
+    \\
     \\  sa_wgpu_create_cube_pipeline(ctx_h, shader_h, vs_entry_ptr, vs_entry_len, fs_entry_ptr, fs_entry_len, out_pipeline_ptr) {
     \\    _require_ready();
     \\    const ctx = _ctx(ctx_h);
@@ -188,19 +348,12 @@ pub const source =
     \\    }
     \\    const vsEntry = _read_str(vs_entry_ptr, vs_entry_len);
     \\    const fsEntry = _read_str(fs_entry_ptr, fs_entry_len);
-    \\    const bindGroupLayout = ctx.device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.VERTEX, buffer: { type: "uniform" } }] });
-    \\    const pipelineLayout = ctx.device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
-    \\    const pipeline = ctx.device.createRenderPipeline({
-    \\      layout: pipelineLayout,
-    \\      vertex: { module: shader, entryPoint: vsEntry, buffers: [{ arrayStride: 24, attributes: [
-    \\        { shaderLocation: 0, offset: 0, format: "float32x3" },
-    \\        { shaderLocation: 1, offset: 12, format: "float32x3" },
-    \\      ] }] },
-    \\      fragment: { module: shader, entryPoint: fsEntry, targets: [{ format: ctx.format }] },
-    \\      primitive: { topology: "triangle-list", cullMode: "none" },
-    \\      depthStencil: { format: "depth24plus", depthWriteEnabled: true, depthCompare: "less" },
-    \\    });
-    \\    _write_i64(out_pipeline_ptr, _handle({ pipeline, bindGroupLayout }));
+    \\    const attrs = [
+    \\      { shaderLocation: 0, offset: 0, format: "float32x3" },
+    \\      { shaderLocation: 1, offset: 12, format: "float32x3" },
+    \\    ];
+    \\    const pipelineObj = _create_render_pipeline(ctx, shader, vsEntry, fsEntry, 24, attrs, 0, 0, 1, 1, 0, 0, 1);
+    \\    _write_i64(out_pipeline_ptr, _handle(pipelineObj));
     \\    return 0;
     \\  },
     \\
@@ -226,31 +379,58 @@ pub const source =
     \\    return 0;
     \\  },
     \\
+    \\  sa_wgpu_submit_indexed_draw(ctx_h, desc_ptr) {
+    \\    _require_ready();
+    \\    const ctx = _ctx(ctx_h);
+    \\    if (!ctx.ready) return 0;
+    \\    try {
+    \\      const base = Number(desc_ptr);
+    \\      const indexFormat = _index_format(_read_i32(base + 32));
+    \\      _submit_draw(ctx, {
+    \\        pipeline_h: _read_i64(base + 0),
+    \\        vertex_h: _read_i64(base + 8),
+    \\        index_h: _read_i64(base + 16),
+    \\        uniform_h: _read_i64(base + 24),
+    \\        indexFormat,
+    \\        indexCount: _read_i64(base + 40),
+    \\        vertexCount: _read_i64(base + 48),
+    \\        loadOp: _load_op(_read_i32(base + 56)),
+    \\        storeOp: _store_op(_read_i32(base + 60)),
+    \\        clearValue: { r: _milli(base + 64), g: _milli(base + 68), b: _milli(base + 72), a: _milli(base + 76) },
+    \\        depthLoadOp: _load_op(_read_i32(base + 80)),
+    \\        depthStoreOp: _store_op(_read_i32(base + 84)),
+    \\        depthClearValue: _milli(base + 88),
+    \\      });
+    \\      return 0;
+    \\    } catch (err) {
+    \\      return _set_error(err && err.message ? err.message : err);
+    \\    }
+    \\  },
+    \\
     \\  sa_wgpu_submit_cube_frame(ctx_h, pipeline_h, vertex_h, index_h, uniform_h, index_count) {
     \\    _require_ready();
     \\    const ctx = _ctx(ctx_h);
     \\    if (!ctx.ready) return 0;
-    \\    const pipelineObj = _object(pipeline_h);
-    \\    const vertex = _object(vertex_h);
-    \\    const index = _object(index_h);
-    \\    const uniform = _object(uniform_h);
-    \\    if (!pipelineObj || !vertex || !index || !uniform) return 0;
-    \\    const bindGroup = ctx.device.createBindGroup({ layout: pipelineObj.bindGroupLayout, entries: [{ binding: 0, resource: { buffer: uniform } }] });
-    \\    const encoder = ctx.device.createCommandEncoder();
-    \\    const depthView = _depth_view(ctx);
-    \\    const view = ctx.context.getCurrentTexture().createView();
-    \\    const pass = encoder.beginRenderPass({
-    \\      colorAttachments: [{ view, clearValue: { r: 0.02, g: 0.025, b: 0.03, a: 1 }, loadOp: "clear", storeOp: "store" }],
-    \\      depthStencilAttachment: { view: depthView, depthClearValue: 1.0, depthLoadOp: "clear", depthStoreOp: "store" },
-    \\    });
-    \\    pass.setPipeline(pipelineObj.pipeline);
-    \\    pass.setBindGroup(0, bindGroup);
-    \\    pass.setVertexBuffer(0, vertex);
-    \\    pass.setIndexBuffer(index, "uint16");
-    \\    pass.drawIndexed(Number(index_count));
-    \\    pass.end();
-    \\    ctx.device.queue.submit([encoder.finish()]);
-    \\    return 0;
+    \\    try {
+    \\      _submit_draw(ctx, {
+    \\        pipeline_h,
+    \\        vertex_h,
+    \\        index_h,
+    \\        uniform_h,
+    \\        indexFormat: "uint16",
+    \\        indexCount: index_count,
+    \\        vertexCount: 0n,
+    \\        loadOp: "clear",
+    \\        storeOp: "store",
+    \\        clearValue: { r: 0.02, g: 0.025, b: 0.03, a: 1 },
+    \\        depthLoadOp: "clear",
+    \\        depthStoreOp: "store",
+    \\        depthClearValue: 1.0,
+    \\      });
+    \\      return 0;
+    \\    } catch (err) {
+    \\      return _set_error(err && err.message ? err.message : err);
+    \\    }
     \\  },
     \\
     \\  sa_wgpu_request_frame(ctx_h, handler_ptr, handler_len, sax_ctx) {
@@ -300,12 +480,16 @@ test "wgpu airlock exposes broker-only imports" {
     defer js.deinit();
 
     try std.testing.expect(std.mem.containsAtLeast(u8, js.items, 1, "export const sax_wgpu_airlock"));
+    try std.testing.expect(std.mem.containsAtLeast(u8, js.items, 1, "sa_wgpu_create_render_pipeline"));
     try std.testing.expect(std.mem.containsAtLeast(u8, js.items, 1, "sa_wgpu_submit_cube_frame"));
+    try std.testing.expect(std.mem.containsAtLeast(u8, js.items, 1, "sa_wgpu_submit_indexed_draw"));
     try std.testing.expect(std.mem.containsAtLeast(u8, js.items, 1, "sa_wgpu_write_buffer_frame"));
     try std.testing.expect(std.mem.containsAtLeast(u8, js.items, 1, "typeof navigator === \"undefined\" || !navigator.gpu"));
     try std.testing.expect(std.mem.containsAtLeast(u8, js.items, 1, "cannot request WebGPU frame without a context handle"));
     try std.testing.expect(std.mem.containsAtLeast(u8, js.items, 1, "if (ctx_key === 0) return 0;"));
     try std.testing.expect(std.mem.containsAtLeast(u8, js.items, 1, "createRenderPipeline"));
+    try std.testing.expect(std.mem.containsAtLeast(u8, js.items, 1, "createCommandEncoder"));
+    try std.testing.expect(std.mem.containsAtLeast(u8, js.items, 1, "queue.submit"));
     try std.testing.expect(std.mem.containsAtLeast(u8, js.items, 1, "depth24plus"));
     try std.testing.expect(std.mem.containsAtLeast(u8, js.items, 1, "depthStencilAttachment"));
     try std.testing.expect(std.mem.containsAtLeast(u8, js.items, 1, "GPUTextureUsage.RENDER_ATTACHMENT"));

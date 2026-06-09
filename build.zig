@@ -45,6 +45,13 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_tests.step);
     test_step.dependOn(b.getInstallStep());
 
+    const sa_layout_test = b.addSystemCommand(&.{ sa_bin, "test", "tests/wgpu_layout_test.sa" });
+    sa_layout_test.addFileInput(b.path("tests/wgpu_layout_test.sa"));
+    sa_layout_test.addFileInput(b.path("wgpu.sal"));
+    sa_layout_test.addFileInput(lib.getEmittedBin());
+    sa_layout_test.step.dependOn(b.getInstallStep());
+    test_step.dependOn(&sa_layout_test.step);
+
     const verify_airlock = b.addSystemCommand(&.{ "node", "tools/verify_wgpu_airlock.mjs" });
     verify_airlock.addFileInput(b.path("tools/verify_wgpu_airlock.mjs"));
     verify_airlock.addFileArg(airlock_file);

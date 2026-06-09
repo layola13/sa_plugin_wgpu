@@ -237,15 +237,18 @@ fn anyWriterFromHostStream(stream: plugin_api.HostStream, storage: *plugin_api.H
 
 fn runWgpuCommandAbi(ctx: *const plugin_api.Context, argv: [*]const [*:0]const u8, argv_len: usize, stdout: plugin_api.HostStream, stderr: plugin_api.HostStream, out_code: *u8) callconv(.c) u32 {
     out_code.* = 0;
-    const args = cArgvToSlice(argv, argv_len, ctx.allocator) catch return @intFromEnum(plugin_api.AbiStatus.failed);
-    defer ctx.allocator.free(args);
+    const allocator = std.heap.page_allocator;
+    var local_ctx = ctx.*;
+    local_ctx.allocator = allocator;
+    const args = cArgvToSlice(argv, argv_len, allocator) catch return @intFromEnum(plugin_api.AbiStatus.failed);
+    defer allocator.free(args);
 
     var stdout_storage = stdout;
     var stderr_storage = stderr;
     const stdout_writer = anyWriterFromHostStream(stdout, &stdout_storage);
     const stderr_writer = anyWriterFromHostStream(stderr, &stderr_storage);
 
-    const result = runWgpuCommandImpl(ctx, args, stdout_writer, stderr_writer) catch |err| {
+    const result = runWgpuCommandImpl(&local_ctx, args, stdout_writer, stderr_writer) catch |err| {
         if (!isWgpuCliError(err)) return @intFromEnum(plugin_api.AbiStatus.failed);
         writeWgpuCliError(stderr_writer, args, err) catch return @intFromEnum(plugin_api.AbiStatus.failed);
         out_code.* = wgpuCliExitCode(err);
