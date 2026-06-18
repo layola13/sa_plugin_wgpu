@@ -1,6 +1,7 @@
 @extern sa_wgpu_request_context(canvas_h: i64, *out_ctx: ptr) -> i32
 @extern sa_wgpu_create_buffer(ctx: i64, usage: i64, *data: ptr, data_len: i64, *out_buffer: ptr) -> i32
 @extern sa_wgpu_create_shader(ctx: i64, *wgsl_ptr: ptr, wgsl_len: i64, *out_shader: ptr) -> i32
+@extern sa_wgpu_create_shader_pair(ctx: i64, *wgsl_ptr: ptr, wgsl_len: i64, *webgl2_vs_ptr: ptr, webgl2_vs_len: i64, *webgl2_fs_ptr: ptr, webgl2_fs_len: i64, *out_shader: ptr) -> i32
 @extern sa_wgpu_create_render_pipeline(ctx: i64, *pipeline_desc: ptr, *out_pipeline: ptr) -> i32
 @extern sa_wgpu_create_cube_pipeline(ctx: i64, shader_h: i64, *vs_entry_ptr: ptr, vs_entry_len: i64, *fs_entry_ptr: ptr, fs_entry_len: i64, *out_pipeline: ptr) -> i32
 @extern sa_wgpu_write_buffer(ctx: i64, buffer_h: i64, offset: i64, *data: ptr, data_len: i64) -> i32

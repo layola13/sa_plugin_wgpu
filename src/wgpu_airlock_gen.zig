@@ -145,7 +145,13 @@ pub const source =
     \\  return _read_i32(ptr) / 1000.0;
     \\}
     \\
+    \\function _normalized_sample_count(sampleCount) {
+    \\  const count = Number(sampleCount) || 1;
+    \\  return count > 1 ? count : 1;
+    \\}
+    \\
     \\function _create_render_pipeline(ctx, shader, vsEntry, fsEntry, vertexStride, attrs, primitive, cullMode, depthEnabled, depthWriteEnabled, depthCompare, uniformBinding, sampleCount) {
+    \\  const multisampleCount = _normalized_sample_count(sampleCount);
     \\  const bindGroupLayout = ctx.device.createBindGroupLayout({ entries: [{ binding: Number(uniformBinding), visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT, buffer: { type: "uniform" } }] });
     \\  const pipelineLayout = ctx.device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
     \\  const desc = {
@@ -153,13 +159,34 @@ pub const source =
     \\    vertex: { module: shader, entryPoint: vsEntry, buffers: [{ arrayStride: Number(vertexStride), attributes: attrs }] },
     \\    fragment: { module: shader, entryPoint: fsEntry, targets: [{ format: ctx.format }] },
     \\    primitive: { topology: _primitive_topology(primitive), cullMode: _cull_mode(cullMode) },
-    \\    multisample: { count: Number(sampleCount) || 1 },
+    \\    multisample: { count: multisampleCount },
     \\  };
     \\  if (Number(depthEnabled) !== 0) {
     \\    desc.depthStencil = { format: "depth24plus", depthWriteEnabled: Number(depthWriteEnabled) !== 0, depthCompare: _depth_compare(depthCompare) };
     \\  }
     \\  const pipeline = ctx.device.createRenderPipeline(desc);
-    \\  return { pipeline, bindGroupLayout, uniformBinding: Number(uniformBinding), depthEnabled: Number(depthEnabled) !== 0 };
+    \\  return { pipeline, bindGroupLayout, uniformBinding: Number(uniformBinding), depthEnabled: Number(depthEnabled) !== 0, sampleCount: multisampleCount };
+    \\}
+    \\
+    \\function _msaa_color_view(ctx, sampleCount) {
+    \\  _resize_canvas(ctx);
+    \\  const count = _normalized_sample_count(sampleCount);
+    \\  if (count <= 1) return null;
+    \\  const width = ctx.canvas.width;
+    \\  const height = ctx.canvas.height;
+    \\  if (!ctx.msaaColorTexture || ctx.msaaWidth !== width || ctx.msaaHeight !== height || ctx.msaaSampleCount !== count) {
+    \\    if (ctx.msaaColorTexture) ctx.msaaColorTexture.destroy();
+    \\    ctx.msaaColorTexture = ctx.device.createTexture({
+    \\      size: [width, height],
+    \\      sampleCount: count,
+    \\      format: ctx.format,
+    \\      usage: GPUTextureUsage.RENDER_ATTACHMENT,
+    \\    });
+    \\    ctx.msaaWidth = width;
+    \\    ctx.msaaHeight = height;
+    \\    ctx.msaaSampleCount = count;
+    \\  }
+    \\  return ctx.msaaColorTexture.createView();
     \\}
     \\
     \\function _submit_draw(ctx, draw) {
@@ -170,12 +197,16 @@ pub const source =
     \\  if (!pipelineObj || !vertex) throw new Error("invalid WebGPU draw pipeline or vertex buffer handle");
     \\  if (draw.indexFormat && !index) throw new Error("indexed WebGPU draw requires an index buffer handle");
     \\  const encoder = ctx.device.createCommandEncoder();
-    \\  const view = ctx.context.getCurrentTexture().createView();
+    \\  const resolveView = ctx.context.getCurrentTexture().createView();
+    \\  const msaaView = _msaa_color_view(ctx, pipelineObj.sampleCount);
+    \\  const colorAttachment = msaaView
+    \\    ? { view: msaaView, resolveTarget: resolveView, clearValue: draw.clearValue, loadOp: draw.loadOp, storeOp: "store" }
+    \\    : { view: resolveView, clearValue: draw.clearValue, loadOp: draw.loadOp, storeOp: draw.storeOp };
     \\  const passDesc = {
-    \\    colorAttachments: [{ view, clearValue: draw.clearValue, loadOp: draw.loadOp, storeOp: draw.storeOp }],
+    \\    colorAttachments: [colorAttachment],
     \\  };
     \\  if (pipelineObj.depthEnabled) {
-    \\    passDesc.depthStencilAttachment = { view: _depth_view(ctx), depthClearValue: draw.depthClearValue, depthLoadOp: draw.depthLoadOp, depthStoreOp: draw.depthStoreOp };
+    \\    passDesc.depthStencilAttachment = { view: _depth_view(ctx, pipelineObj.sampleCount), depthClearValue: draw.depthClearValue, depthLoadOp: draw.depthLoadOp, depthStoreOp: draw.depthStoreOp };
     \\  } else {
     \\    _resize_canvas(ctx);
     \\  }
@@ -210,23 +241,31 @@ pub const source =
     \\    ctx.depthTexture = null;
     \\    ctx.depthWidth = 0;
     \\    ctx.depthHeight = 0;
+    \\    if (ctx.msaaColorTexture) ctx.msaaColorTexture.destroy();
+    \\    ctx.msaaColorTexture = null;
+    \\    ctx.msaaWidth = 0;
+    \\    ctx.msaaHeight = 0;
+    \\    ctx.msaaSampleCount = 1;
     \\    ctx.configured = true;
     \\  }
     \\}
     \\
-    \\function _depth_view(ctx) {
+    \\function _depth_view(ctx, sampleCount) {
     \\  _resize_canvas(ctx);
+    \\  const count = _normalized_sample_count(sampleCount);
     \\  const width = ctx.canvas.width;
     \\  const height = ctx.canvas.height;
-    \\  if (!ctx.depthTexture || ctx.depthWidth !== width || ctx.depthHeight !== height) {
+    \\  if (!ctx.depthTexture || ctx.depthWidth !== width || ctx.depthHeight !== height || ctx.depthSampleCount !== count) {
     \\    if (ctx.depthTexture) ctx.depthTexture.destroy();
     \\    ctx.depthTexture = ctx.device.createTexture({
     \\      size: [width, height],
+    \\      sampleCount: count,
     \\      format: "depth24plus",
     \\      usage: GPUTextureUsage.RENDER_ATTACHMENT,
     \\    });
     \\    ctx.depthWidth = width;
     \\    ctx.depthHeight = height;
+    \\    ctx.depthSampleCount = count;
     \\  }
     \\  return ctx.depthTexture.createView();
     \\}
@@ -256,7 +295,7 @@ pub const source =
     \\      const context = canvas.getContext("webgpu");
     \\      if (!context) throw new Error("canvas.getContext('webgpu') failed");
     \\      const format = navigator.gpu.getPreferredCanvasFormat();
-    \\      const ctx = { canvas, adapter, device, context, format, ready: true, raf: 0, configured: false, depthTexture: null, depthWidth: 0, depthHeight: 0 };
+    \\      const ctx = { canvas, adapter, device, context, format, ready: true, raf: 0, configured: false, depthTexture: null, depthWidth: 0, depthHeight: 0, depthSampleCount: 1, msaaColorTexture: null, msaaWidth: 0, msaaHeight: 0, msaaSampleCount: 1 };
     \\      _resize_canvas(ctx);
     \\      return ctx;
     \\    })().then((ctx) => {

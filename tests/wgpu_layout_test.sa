@@ -69,6 +69,31 @@ L_ERR0:
 L_ERR1:
     panic(4201)
 
+@test "wgpu render pipeline desc accepts multisample counts"():
+L_ENTRY:
+    attr0 = alloc WGPU_VERTEX_ATTR_SIZE
+    desc = alloc WGPU_RENDER_PIPELINE_DESC_SIZE
+    call @sa_wgpu_vertex_attr_init(&attr0, 0, 0, WGPU_VERTEX_FORMAT_FLOAT32X3)
+    call @sa_wgpu_render_pipeline_desc_init(&desc)
+    call @sa_wgpu_render_pipeline_desc_set_shader(&desc, 44, *WGPU_CUBE_VS_ENTRY, WGPU_CUBE_VS_ENTRY_LEN, *WGPU_CUBE_FS_ENTRY, WGPU_CUBE_FS_ENTRY_LEN)
+    call @sa_wgpu_render_pipeline_desc_set_vertex_layout(&desc, 24, &attr0, 1)
+    store desc+WGPU_RENDER_PIPELINE_DESC_sample_count, 4 as i32
+    valid4 = call @sa_wgpu_render_pipeline_desc_is_valid(&desc)
+    store desc+WGPU_RENDER_PIPELINE_DESC_sample_count, 3 as i32
+    valid3 = call @sa_wgpu_render_pipeline_desc_is_valid(&desc)
+    valid4_ok = eq valid4, 1
+    valid3_ok = eq valid3, 0
+    ok = and valid4_ok, valid3_ok
+    !desc
+    !attr0
+    br ok -> L_OK, L_ERR
+
+L_OK:
+    return 0
+
+L_ERR:
+    panic(4205)
+
 @test "wgpu draw desc validation"():
 L_ENTRY:
     desc = alloc WGPU_DRAW_DESC_SIZE

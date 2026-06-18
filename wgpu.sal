@@ -406,7 +406,13 @@ L_ENTRY:
     attrs_max = sle attrs, 4
     attrs_ok = and attrs_min, attrs_max
     primitive_ok = call @sa_wgpu_primitive_is_valid(primitive)
-    samples_ok = eq sample_count, 1
+    samples_one = eq sample_count, 1
+    samples_two = eq sample_count, 2
+    samples_four = eq sample_count, 4
+    samples_eight = eq sample_count, 8
+    samples_or_one_two = or samples_one, samples_two
+    samples_or_four_eight = or samples_four, samples_eight
+    samples_ok = or samples_or_one_two, samples_or_four_eight
     a = and shader_ok, entries_ok
     b = and stride_ok, attrs_ok
     c = and a, b
@@ -420,6 +426,12 @@ L_TRUE:
     !b
     !a
     !samples_ok
+    !samples_or_four_eight
+    !samples_or_one_two
+    !samples_eight
+    !samples_four
+    !samples_two
+    !samples_one
     !primitive_ok
     !attrs_ok
     !attrs_max
@@ -445,6 +457,12 @@ L_FALSE:
     !b
     !a
     !samples_ok
+    !samples_or_four_eight
+    !samples_or_one_two
+    !samples_eight
+    !samples_four
+    !samples_two
+    !samples_one
     !primitive_ok
     !attrs_ok
     !attrs_max
