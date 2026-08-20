@@ -4,9 +4,9 @@ const wgpu_airlock_gen = @import("src/wgpu_airlock_gen.zig");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const sa_repo_root = b.option([]const u8, "sa-repo-root", "SA repository root used to resolve the host binary.") orelse "/home/vscode/projects/sci";
-    const sa_bin = b.option([]const u8, "sa-bin", "Path to the SA host binary used for SAX/WGPU integration tests.") orelse b.pathJoin(&.{ sa_repo_root, "zig-out/bin/sa" });
-    const sax_lib = b.option([]const u8, "sax-lib", "Path to the SAX plugin dynamic library used for integration tests.") orelse "/home/vscode/projects/sa_plugins/sa_plugin_sax/zig-out/lib/libsax.so";
+    const sa_repo_root = b.option([]const u8, "sa-repo-root", "SA repository root used to resolve the host binary.") orelse if (target.result.os.tag == .windows) b.pathJoin(&.{ "..", "sci" }) else "/home/vscode/projects/sci";
+    const sa_bin = b.option([]const u8, "sa-bin", "Path to the SA host binary used for SAX/WGPU integration tests.") orelse b.pathJoin(&.{ sa_repo_root, if (target.result.os.tag == .windows) "zig-out/bin/sa.exe" else "zig-out/bin/sa" });
+    const sax_lib = b.option([]const u8, "sax-lib", "Path to the SAX plugin dynamic library used for integration tests.") orelse if (target.result.os.tag == .windows) b.pathJoin(&.{ "..", "sa_plugin_sax", "zig-out", "bin", "sax.dll" }) else "/home/vscode/projects/sa_plugins/sa_plugin_sax/zig-out/lib/libsax.so";
 
     const plugin_api = b.createModule(.{
         .root_source_file = b.path("src/plugin_api.zig"),
@@ -57,7 +57,7 @@ pub fn build(b: *std.Build) void {
     verify_airlock.addFileArg(airlock_file);
     test_step.dependOn(&verify_airlock.step);
 
-    const installed_lib = b.getInstallPath(.lib, "libwgpu.so");
+    const installed_lib = if (target.result.os.tag == .windows) b.getInstallPath(.bin, "wgpu.dll") else b.getInstallPath(.lib, "libwgpu.so");
     const plugin_path = b.fmt("{s}:{s}", .{ sax_lib, installed_lib });
     const demo_input = b.path("demos/rotating_cube.sax");
     const sax_lib_input: std.Build.LazyPath = .{ .cwd_relative = sax_lib };
