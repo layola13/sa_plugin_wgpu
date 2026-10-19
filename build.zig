@@ -4,6 +4,12 @@ const wgpu_airlock_gen = @import("src/wgpu_airlock_gen.zig");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const sci_root = b.option([]const u8, "sci-root", "Path to the sci checkout") orelse "../sci";
+    const sio_module = b.createModule(.{
+        .root_source_file = .{ .cwd_relative = b.pathJoin(&.{ sci_root, "src", "sa_io.zig" }) },
+        .target = target,
+        .optimize = optimize,
+    });
     const sa_repo_root = b.option([]const u8, "sa-repo-root", "SA repository root used to resolve the host binary.") orelse "/home/vscode/projects/sci";
     const sa_bin = b.option([]const u8, "sa-bin", "Path to the SA host binary used for SAX/WGPU integration tests.") orelse b.pathJoin(&.{ sa_repo_root, "zig-out/bin/sa" });
     const sax_lib = b.option([]const u8, "sax-lib", "Path to the SAX plugin dynamic library used for integration tests.") orelse "/home/vscode/projects/sa_plugins/sa_plugin_sax/zig-out/lib/libsax.so";
@@ -20,6 +26,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     root_module.addImport("plugin_api", plugin_api);
+    root_module.addImport("sio", sio_module);
 
     const lib = b.addLibrary(.{
         .name = "wgpu",
@@ -57,7 +64,7 @@ pub fn build(b: *std.Build) void {
     verify_airlock.addFileArg(airlock_file);
     test_step.dependOn(&verify_airlock.step);
 
-    const installed_lib = b.getInstallPath(.lib, "libwgpu.so");
+    const installed_lib = b.pathJoin(&.{ "zig-out", "lib", "libwgpu.so" });
     const plugin_path = b.fmt("{s}:{s}", .{ sax_lib, installed_lib });
     const demo_input = b.path("demos/rotating_cube.sax");
     const sax_lib_input: std.Build.LazyPath = .{ .cwd_relative = sax_lib };

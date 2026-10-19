@@ -1,4 +1,5 @@
 const std = @import("std");
+const sio = @import("sio");
 const plugin_api = @import("plugin_api");
 const wgpu_airlock_gen = @import("wgpu_airlock_gen.zig");
 
@@ -36,19 +37,19 @@ fn cArgvToSlice(argv: [*]const [*:0]const u8, argv_len: usize, allocator: std.me
 
 fn ensureParentDir(path: []const u8) !void {
     if (std.fs.path.dirname(path)) |dir| {
-        if (dir.len != 0) try std.fs.cwd().makePath(dir);
+        if (dir.len != 0) try sio.cwd().makePath(dir);
     }
 }
 
 fn writeAllFile(path: []const u8, bytes: []const u8) !void {
     try ensureParentDir(path);
-    var file = try std.fs.cwd().createFile(path, .{ .truncate = true });
+    var file = try sio.cwd().createFile(path, .{ .truncate = true });
     defer file.close();
     try file.writeAll(bytes);
 }
 
 fn readSource(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
-    return std.fs.cwd().readFileAlloc(allocator, path, 16 * 1024 * 1024) catch |err| switch (err) {
+    return sio.cwd().readFileAlloc(allocator, path, 16 * 1024 * 1024) catch |err| switch (err) {
         error.FileNotFound => return error.FileNotFound,
         error.AccessDenied => return error.AccessDenied,
         error.IsDir => return error.NotDir,
@@ -68,7 +69,7 @@ fn sourceKeepsKernelOutOfJs(source: []const u8) bool {
         std.mem.indexOf(u8, source, "createShaderModule") == null;
 }
 
-fn executeAirlock(ctx: *const plugin_api.Context, argv: []const []const u8, stdout: std.io.AnyWriter) !u8 {
+fn executeAirlock(ctx: *const plugin_api.Context, argv: []const []const u8, stdout: *std.Io.Writer) !u8 {
     var out_path: ?[]const u8 = null;
     var i: usize = 3;
     while (i < argv.len) : (i += 1) {
@@ -95,7 +96,7 @@ fn executeAirlock(ctx: *const plugin_api.Context, argv: []const []const u8, stdo
     return 0;
 }
 
-fn executeCheck(ctx: *const plugin_api.Context, sax_file: []const u8, stdout: std.io.AnyWriter, stderr: std.io.AnyWriter) !u8 {
+fn executeCheck(ctx: *const plugin_api.Context, sax_file: []const u8, stdout: *std.Io.Writer, stderr: *std.Io.Writer) !u8 {
     const source = try readSource(ctx.allocator, sax_file);
     defer ctx.allocator.free(source);
 
@@ -112,8 +113,8 @@ fn executeCheck(ctx: *const plugin_api.Context, sax_file: []const u8, stdout: st
     return 0;
 }
 
-fn executeNew(ctx: *const plugin_api.Context, project_name: []const u8, stdout: std.io.AnyWriter) !u8 {
-    try std.fs.cwd().makePath(project_name);
+fn executeNew(ctx: *const plugin_api.Context, project_name: []const u8, stdout: *std.Io.Writer) !u8 {
+    try sio.cwd().makePath(project_name);
 
     const sax_path = try std.fs.path.join(ctx.allocator, &.{ project_name, "app.sax" });
     defer ctx.allocator.free(sax_path);
@@ -161,7 +162,7 @@ fn executeNew(ctx: *const plugin_api.Context, project_name: []const u8, stdout: 
     return 0;
 }
 
-fn runWgpuCommandImpl(ctx: *const plugin_api.Context, argv: []const []const u8, stdout: std.io.AnyWriter, stderr: std.io.AnyWriter) anyerror!?u8 {
+fn runWgpuCommandImpl(ctx: *const plugin_api.Context, argv: []const []const u8, stdout: *std.Io.Writer, stderr: *std.Io.Writer) anyerror!?u8 {
     if (argv.len < 2) return null;
     if (!std.mem.eql(u8, argv[1], "wgpu")) return null;
     if (argv.len < 3) return error.MissingSourcePath;
@@ -208,7 +209,7 @@ fn wgpuCliExitCode(err: anyerror) u8 {
     };
 }
 
-fn writeWgpuCliError(writer: std.io.AnyWriter, argv: []const []const u8, err: anyerror) !void {
+fn writeWgpuCliError(writer: *std.Io.Writer, argv: []const []const u8, err: anyerror) !void {
     _ = argv;
     const message = switch (err) {
         error.MissingSourcePath => "missing required WGPU operand",
@@ -223,16 +224,41 @@ fn writeWgpuCliError(writer: std.io.AnyWriter, argv: []const []const u8, err: an
     try writer.print("error[SA-WGPU-CLI]: {s}\n  help: sa wgpu <airlock|check|new> ...\n", .{message});
 }
 
-fn anyWriterFromHostStream(stream: plugin_api.HostStream, storage: *plugin_api.HostStream) std.io.AnyWriter {
-    storage.* = stream;
-    return .{ .context = storage, .writeFn = struct {
-        fn write(ctx: *const anyopaque, bytes: []const u8) anyerror!usize {
-            const hs = @as(*const plugin_api.HostStream, @ptrCast(@alignCast(ctx)));
-            const write_all = hs.write_all orelse return error.WriteFailed;
-            if (write_all(hs.ctx, bytes.ptr, bytes.len) != @intFromEnum(plugin_api.AbiStatus.ok)) return error.WriteFailed;
-            return bytes.len;
+const HostWriter = struct {
+    writer: std.Io.Writer,
+    stream: plugin_api.HostStream,
+
+    fn drain(w: *std.Io.Writer, data: []const []const u8, splat: usize) std.Io.Writer.Error!usize {
+        const self: *HostWriter = @fieldParentPtr("writer", w);
+        const write_all = self.stream.write_all orelse return error.WriteFailed;
+        const ok = @intFromEnum(plugin_api.AbiStatus.ok);
+        if (w.end > 0) {
+            if (write_all(self.stream.ctx, w.buffer.ptr, w.end) != ok) return error.WriteFailed;
+            w.end = 0;
         }
-    }.write };
+        for (data[0 .. data.len - 1]) |slice| {
+            if (write_all(self.stream.ctx, slice.ptr, slice.len) != ok) return error.WriteFailed;
+        }
+        const last = data[data.len - 1];
+        var r: usize = 0;
+        while (r < splat) : (r += 1) {
+            if (write_all(self.stream.ctx, last.ptr, last.len) != ok) return error.WriteFailed;
+        }
+        return std.Io.Writer.countSplat(data, splat);
+    }
+
+    fn init(stream: plugin_api.HostStream) HostWriter {
+        return .{
+            .writer = .{ .vtable = &.{ .drain = drain }, .buffer = &.{} },
+            .stream = stream,
+        };
+    }
+};
+
+fn anyWriterFromHostStream(stream: plugin_api.HostStream, storage: *HostWriter) ?*std.Io.Writer {
+    if (stream.write_all == null or stream.ctx == null) return null;
+    storage.* = HostWriter.init(stream);
+    return &storage.writer;
 }
 
 fn runWgpuCommandAbi(ctx: *const plugin_api.Context, argv: [*]const [*:0]const u8, argv_len: usize, stdout: plugin_api.HostStream, stderr: plugin_api.HostStream, out_code: *u8) callconv(.c) u32 {
@@ -243,10 +269,10 @@ fn runWgpuCommandAbi(ctx: *const plugin_api.Context, argv: [*]const [*:0]const u
     const args = cArgvToSlice(argv, argv_len, allocator) catch return @intFromEnum(plugin_api.AbiStatus.failed);
     defer allocator.free(args);
 
-    var stdout_storage = stdout;
-    var stderr_storage = stderr;
-    const stdout_writer = anyWriterFromHostStream(stdout, &stdout_storage);
-    const stderr_writer = anyWriterFromHostStream(stderr, &stderr_storage);
+    var stdout_storage: HostWriter = undefined;
+    var stderr_storage: HostWriter = undefined;
+    const stdout_writer = anyWriterFromHostStream(stdout, &stdout_storage) orelse return @intFromEnum(plugin_api.AbiStatus.failed);
+    const stderr_writer = anyWriterFromHostStream(stderr, &stderr_storage) orelse return @intFromEnum(plugin_api.AbiStatus.failed);
 
     const result = runWgpuCommandImpl(&local_ctx, args, stdout_writer, stderr_writer) catch |err| {
         if (!isWgpuCliError(err)) return @intFromEnum(plugin_api.AbiStatus.failed);
@@ -341,7 +367,7 @@ test "wgpu airlock command emits broker source" {
 }
 
 test "wgpu check accepts rotating cube demo shape" {
-    var original_cwd = try std.fs.cwd().openDir(".", .{});
+    var original_cwd = try sio.cwd().openDir(".", .{});
     defer original_cwd.close();
     var tmp = std.testing.tmpDir(.{ .iterate = true });
     defer tmp.cleanup();
@@ -361,7 +387,7 @@ test "wgpu check accepts rotating cube demo shape" {
 }
 
 test "wgpu new writes a sax scaffold" {
-    var original_cwd = try std.fs.cwd().openDir(".", .{});
+    var original_cwd = try sio.cwd().openDir(".", .{});
     defer original_cwd.close();
     var tmp = std.testing.tmpDir(.{ .iterate = true });
     defer tmp.cleanup();
@@ -377,7 +403,7 @@ test "wgpu new writes a sax scaffold" {
     try std.testing.expectEqual(@as(u8, 0), code);
     try std.testing.expectEqual(@as(usize, 0), stderr_buf.items.len);
 
-    const app = try std.fs.cwd().readFileAlloc(std.testing.allocator, "demo/app.sax", 1024 * 1024);
+    const app = try sio.cwd().readFileAlloc(std.testing.allocator, "demo/app.sax", 1024 * 1024);
     defer std.testing.allocator.free(app);
     try std.testing.expect(std.mem.containsAtLeast(u8, app, 1, "renderer=\"wgpu\""));
     try std.testing.expect(std.mem.containsAtLeast(u8, app, 1, "sa_wgpu_submit_cube_frame"));
