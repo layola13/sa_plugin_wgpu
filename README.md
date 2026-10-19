@@ -1,5 +1,9 @@
 # sa_plugin_wgpu
 
+> **Build requirement: Zig 0.17** — this plugin targets and is verified against **Zig 0.17.0**. Build and test with Zig 0.17; older toolchains such as 0.14.x are not supported.
+> 本插件需使用 **Zig 0.17** 编译与测试。
+
+
 `sa_plugin_wgpu` is a browser WebGPU sidecar plugin for SAX.
 
 It deliberately keeps WebGPU kernel material out of JavaScript. The broker in `wgpu_airlock.js` only owns browser-only operations: `navigator.gpu`, GPU object handles, byte uploads, and command submission. WGSL, vertex bytes, index bytes, uniform frames, and frame selection are emitted by SA/WASM.
