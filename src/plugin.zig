@@ -305,7 +305,7 @@ pub export fn saasm_plugin_descriptor_v1_fn(out: *plugin_api.PluginDescriptor) c
 }
 
 const CaptureStream = struct {
-    buffer: *std.ArrayList(u8),
+    buffer: *std.array_list.Managed(u8),
 };
 
 fn captureWriteAll(ctx: ?*anyopaque, bytes: [*]const u8, len: usize) callconv(.c) u32 {
@@ -326,7 +326,7 @@ fn dupeZArgs(allocator: std.mem.Allocator, argv: []const []const u8) ![][*:0]con
         for (out[0..copied]) |arg| allocator.free(std.mem.sliceTo(arg, 0));
     }
     for (argv, 0..) |arg, idx| {
-        out[idx] = try allocator.dupeZ(u8, arg);
+        out[idx] = try allocator.dupeSentinel(u8, arg, 0);
         copied += 1;
     }
     return out;
@@ -337,7 +337,7 @@ fn freeZArgs(allocator: std.mem.Allocator, argv: [][*:0]const u8) void {
     allocator.free(argv);
 }
 
-fn invokeForTest(argv: []const []const u8, stdout_buffer: *std.ArrayList(u8), stderr_buffer: *std.ArrayList(u8), allocator: std.mem.Allocator) !u8 {
+fn invokeForTest(argv: []const []const u8, stdout_buffer: *std.array_list.Managed(u8), stderr_buffer: *std.array_list.Managed(u8), allocator: std.mem.Allocator) !u8 {
     var ctx = plugin_api.Context{ .allocator = allocator };
     var stdout_ctx = CaptureStream{ .buffer = stdout_buffer };
     var stderr_ctx = CaptureStream{ .buffer = stderr_buffer };
@@ -355,9 +355,9 @@ test "wgpu plugin exports descriptor and skills" {
 }
 
 test "wgpu airlock command emits broker source" {
-    var stdout_buf = std.ArrayList(u8).init(std.testing.allocator);
+    var stdout_buf = std.array_list.Managed(u8).init(std.testing.allocator);
     defer stdout_buf.deinit();
-    var stderr_buf = std.ArrayList(u8).init(std.testing.allocator);
+    var stderr_buf = std.array_list.Managed(u8).init(std.testing.allocator);
     defer stderr_buf.deinit();
 
     const code = try invokeForTest(&.{ "sa", "wgpu", "airlock" }, &stdout_buf, &stderr_buf, std.testing.allocator);
@@ -371,13 +371,13 @@ test "wgpu check accepts rotating cube demo shape" {
     defer original_cwd.close();
     var tmp = std.testing.tmpDir(.{ .iterate = true });
     defer tmp.cleanup();
-    try tmp.dir.setAsCwd();
+    try (sio.Dir{ .inner = tmp.dir }).setAsCwd();
     defer original_cwd.setAsCwd() catch {};
 
     try writeAllFile("cube.sax", rotating_cube_sax);
-    var stdout_buf = std.ArrayList(u8).init(std.testing.allocator);
+    var stdout_buf = std.array_list.Managed(u8).init(std.testing.allocator);
     defer stdout_buf.deinit();
-    var stderr_buf = std.ArrayList(u8).init(std.testing.allocator);
+    var stderr_buf = std.array_list.Managed(u8).init(std.testing.allocator);
     defer stderr_buf.deinit();
 
     const code = try invokeForTest(&.{ "sa", "wgpu", "check", "cube.sax" }, &stdout_buf, &stderr_buf, std.testing.allocator);
@@ -391,12 +391,12 @@ test "wgpu new writes a sax scaffold" {
     defer original_cwd.close();
     var tmp = std.testing.tmpDir(.{ .iterate = true });
     defer tmp.cleanup();
-    try tmp.dir.setAsCwd();
+    try (sio.Dir{ .inner = tmp.dir }).setAsCwd();
     defer original_cwd.setAsCwd() catch {};
 
-    var stdout_buf = std.ArrayList(u8).init(std.testing.allocator);
+    var stdout_buf = std.array_list.Managed(u8).init(std.testing.allocator);
     defer stdout_buf.deinit();
-    var stderr_buf = std.ArrayList(u8).init(std.testing.allocator);
+    var stderr_buf = std.array_list.Managed(u8).init(std.testing.allocator);
     defer stderr_buf.deinit();
 
     const code = try invokeForTest(&.{ "sa", "wgpu", "new", "demo" }, &stdout_buf, &stderr_buf, std.testing.allocator);
